@@ -1726,7 +1726,9 @@ const OrchestrationV2ProviderFailureCode = TrimmedNonEmptyString.check(Schema.is
 
 export const GoogleAccountVerificationUrl = TrimmedNonEmptyString.check(
   Schema.isMaxLength(4_096),
-  Schema.isPattern(/^https:\/\/accounts\.google\.com\/v3\/signin\/continue\?[^\s\\#]+$/),
+  Schema.isPattern(
+    /^https:\/\/accounts\.google\.com\/(?:v3\/)?signin\/continue\?[^\s\p{Cc}\\#]+$/u,
+  ),
 );
 
 /** Producers must redact credentials from diagnostic text before construction. */
