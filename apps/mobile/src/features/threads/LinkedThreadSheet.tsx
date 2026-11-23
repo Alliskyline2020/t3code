@@ -286,6 +286,14 @@ export function LinkedThreadView(props: {
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   // Follows new items only while the reader is already at the end.
   const atEnd = useRef(true);
+  const sizes = useRef({ viewport: 0, content: 0 });
+  // `scrollToEnd` clamps at 0 and ignores the inset under a see-through header, so a feed that
+  // fits would slide beneath the header; follow only one taller than the scroll view.
+  const followEnd = () => {
+    if (sizes.current.viewport > 0 && sizes.current.content > sizes.current.viewport) {
+      scroll.current?.scrollToEnd({ animated: false });
+    }
+  };
   const showHistoryError =
     view !== null && view.thread.historyCursor !== null && view.history.failed;
   const lastLayoutHadHistoryError = useRef(false);
@@ -336,13 +344,16 @@ export function LinkedThreadView(props: {
             const { contentOffset, contentSize, layoutMeasurement } = nativeEvent;
             atEnd.current = contentSize.height - layoutMeasurement.height - contentOffset.y < 80;
           }}
-          onContentSizeChange={() => {
+          onLayout={({ nativeEvent }) => {
+            sizes.current.viewport = nativeEvent.layout.height;
+            if (atEnd.current) followEnd();
+          }}
+          onContentSizeChange={(_width, height) => {
+            sizes.current.content = height;
             // A page error can resize the top of a short feed whose reader is also near the end.
             const historyErrorChanged = lastLayoutHadHistoryError.current !== showHistoryError;
             lastLayoutHadHistoryError.current = showHistoryError;
-            if (atEnd.current && !historyErrorChanged) {
-              scroll.current?.scrollToEnd({ animated: false });
-            }
+            if (atEnd.current && !historyErrorChanged) followEnd();
           }}
         >
           {view === null || projection === null ? (
