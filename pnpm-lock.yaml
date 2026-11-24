@@ -1818,6 +1818,9 @@ importers:
       '@t3tools/provider-acp':
         specifier: workspace:*
         version: link:../provider-acp
+      '@t3tools/provider-acp-registry':
+        specifier: workspace:*
+        version: link:../provider-acp-registry
       '@t3tools/provider-core':
         specifier: workspace:*
         version: link:../provider-core

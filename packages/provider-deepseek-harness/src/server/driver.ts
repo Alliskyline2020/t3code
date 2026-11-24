@@ -1,8 +1,10 @@
-import { ProviderDriverKind, TextGenerationError } from "@t3tools/contracts";
+import { ProviderDriverKind, type ServerProvider, TextGenerationError } from "@t3tools/contracts";
 import { DeepSeekHarnessSettings } from "../settings.ts";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
+import * as Semaphore from "effect/Semaphore";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 
 import type * as ProviderHost from "@t3tools/provider-core/server/ProviderHost";
@@ -24,6 +26,11 @@ import {
 } from "@t3tools/provider-core/server/snapshotSettings";
 import type { ProviderTextGeneration } from "@t3tools/provider-core/server/textGeneration";
 import * as HostProcess from "@t3tools/shared/HostProcess";
+import * as AcpRegistryRuntimeCoordinator from "@t3tools/provider-acp-registry/server/AcpRegistryRuntimeCoordinator";
+import {
+  applyAcpRegistryLiveConfiguration,
+  type AcpRegistryLiveConfiguration,
+} from "@t3tools/provider-acp-registry/server/liveConfiguration";
 import { type DshAdapterV2DriverEnv, makeDshAdapterV2Driver } from "./adapter.ts";
 import { buildInitialDshProviderSnapshot, checkDshProviderStatus } from "./status.ts";
 
@@ -80,6 +87,15 @@ export const DshDriver: ProviderDriver<DeepSeekHarnessSettings, DshDriverEnv> = 
       environment,
       yield* HostProcess.Environment,
     );
+    // Shared with the registry driver: the adapter publishes what each session advertises
+    // (models, reasoning effort) and the snapshot below merges it into the picker.
+    const runtimeCoordinator = Option.getOrUndefined(
+      yield* Effect.serviceOption(AcpRegistryRuntimeCoordinator.AcpRegistryRuntimeCoordinator),
+    );
+    if (runtimeCoordinator !== undefined) {
+      yield* runtimeCoordinator.clearLiveConfiguration(instanceId);
+      yield* Effect.addFinalizer(() => runtimeCoordinator.clearLiveConfiguration(instanceId));
+    }
     const continuationIdentity = defaultProviderContinuationIdentity({
       driverKind: DRIVER_KIND,
       instanceId,
@@ -110,6 +126,38 @@ export const DshDriver: ProviderDriver<DeepSeekHarnessSettings, DshDriverEnv> = 
         Effect.map(stampIdentity),
         Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
       ),
+      ...(runtimeCoordinator === undefined
+        ? {}
+        : {
+            enrichSnapshot: Effect.fn("DshDriver.enrichSnapshot")(function* ({
+              getSnapshot,
+              publishSnapshot,
+            }: {
+              readonly getSnapshot: Effect.Effect<ServerProvider>;
+              readonly publishSnapshot: (next: ServerProvider) => Effect.Effect<void>;
+            }) {
+              const coordinator = runtimeCoordinator;
+              const semaphore = yield* Semaphore.make(1);
+              const applyLive = (configuration: AcpRegistryLiveConfiguration) =>
+                semaphore.withPermits(1)(
+                  getSnapshot.pipe(
+                    Effect.flatMap((latest) =>
+                      publishSnapshot(
+                        stampIdentity(
+                          applyAcpRegistryLiveConfiguration(
+                            latest,
+                            configuration,
+                            effectiveConfig.customModels,
+                            latest.models,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              yield* coordinator.watchLiveConfiguration(instanceId, applyLive);
+            }),
+          }),
     }).pipe(
       Effect.mapError(
         (cause) =>

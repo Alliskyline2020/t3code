@@ -143,12 +143,13 @@ export const checkDshProviderStatus = Effect.fn("checkDshProviderStatus")(functi
     });
   }
 
-  // Credentials live in the harness profile, not in T3: the CLI running at all
-  // means the profile's own provider sign-in governs every turn.
+  // Credentials live in the harness profile, not in T3, and `dsh` exposes no passive way to
+  // read them: an unauthenticated harness still opens a session and fails the first prompt
+  // with its own instructions ("store DEEPSEEK_API_KEY ..."), which the adapter surfaces.
   return snapshot(settings, checkedAt, {
     installed: true,
     version,
     status: "ready",
-    auth: { status: "authenticated", type: "api_key", label: "DeepSeek Harness profile" },
+    auth: { status: "unknown" },
   });
 });

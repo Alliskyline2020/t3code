@@ -26,6 +26,10 @@
     "./server/AcpRegistryRuntimeCoordinator": {
       "types": "./src/server/AcpRegistryRuntimeCoordinator.ts",
       "import": "./src/server/AcpRegistryRuntimeCoordinator.ts"
+    },
+    "./server/liveConfiguration": {
+      "types": "./src/server/liveConfiguration.ts",
+      "import": "./src/server/liveConfiguration.ts"
     }
   },
   "scripts": {
