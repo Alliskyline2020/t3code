@@ -26,11 +26,11 @@
     "@t3tools/provider-acp-registry": "workspace:*",
     "@t3tools/provider-core": "workspace:*",
     "@t3tools/shared": "workspace:*",
-    "effect": "catalog:",
-    "effect-acp": "workspace:*"
+    "effect": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "effect-acp": "workspace:*",
     "vite-plus": "catalog:"
   }
 }
